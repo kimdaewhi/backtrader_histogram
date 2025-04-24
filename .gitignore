@@ -173,4 +173,6 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
+# 결과는 .gitignore에 추가됨
+market_regime.html
 # End of https://www.toptal.com/developers/gitignore/api/python

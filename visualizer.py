@@ -1,20 +1,14 @@
-import pandas as pd
+from bokeh.models import Div
+from bokeh.layouts import column
 from bokeh.plotting import figure, output_file, save
-from bokeh.models import ColumnDataSource, BoxAnnotation
-from bokeh.palettes import Category20
-import datetime
+from bokeh.models import BoxAnnotation
 
 def plot_market_regime_to_html(filepath):
+    import pandas as pd
+
     df = pd.read_excel(filepath, engine="openpyxl")
+    df['date'] = pd.date_range(start='2022-01-01', periods=len(df), freq='B')
 
-    if 'current price' not in df.columns or 'market_regime' not in df.columns:
-        raise ValueError("❗Required columns 'current price' and 'market_regime' not found.")
-
-    df['date'] = pd.date_range(start='2022-01-01', periods=len(df), freq='B')  # 평일 기준 날짜 생성
-
-    source = ColumnDataSource(df)
-
-    # 색상 매핑
     regime_colors = {
         "bull": "lightgreen",
         "bear": "lightcoral",
@@ -25,25 +19,32 @@ def plot_market_regime_to_html(filepath):
 
     p = figure(title="Market Regime Zones with Price",
                x_axis_type="datetime", width=1200, height=500)
-    
-    p.line('date', 'current price', source=source, line_width=2, color='black', legend_label="Price")
 
-    # 레짐 색상 음영 박스 추가
+    # 가격 선
+    p.line(df['date'], df['current price'], line_width=2, color='black', legend_label="Price")
+
+    # 영역 색상
     start_idx = 0
     for i in range(1, len(df)):
-        prev = df['market_regime'][i - 1]
-        curr = df['market_regime'][i]
-        if curr != prev or i == len(df) - 1:
-            start_date = df['date'][start_idx]
-            end_date = df['date'][i]
-            color = regime_colors.get(prev, 'white')
-            box = BoxAnnotation(left=start_date, right=end_date, fill_color=color, fill_alpha=0.3)
-            p.add_layout(box)
+        if df['market_regime'][i] != df['market_regime'][i-1] or i == len(df) - 1:
+            regime = df['market_regime'][i-1]
+            color = regime_colors.get(regime, 'white')
+            p.add_layout(BoxAnnotation(left=df['date'][start_idx], right=df['date'][i],
+                                       fill_color=color, fill_alpha=0.3))
             start_idx = i
 
-    p.legend.location = "top_left"
-    p.xaxis.axis_label = "Date"
-    p.yaxis.axis_label = "Price"
+    # ✅ HTML용 범례 수동 삽입
+    html_legend = Div(text="""
+        <div style="font-size:14px; padding-bottom:10px;">
+            <b>Market Regime Legend:</b><br>
+            <span style="background-color: lightgreen; padding: 3px 10px;">Bull</span>
+            <span style="background-color: lightcoral; padding: 3px 10px;">Bear</span>
+            <span style="background-color: lightgray; padding: 3px 10px;">Sideways</span>
+            <span style="background-color: khaki; padding: 3px 10px;">Volatile</span>
+        </div>
+    """)
+
+    layout = column(html_legend, p)
 
     output_file("market_regime.html")
-    save(p)
+    save(layout)
